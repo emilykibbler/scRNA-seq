@@ -19,7 +19,7 @@ Citation:
 Zepp, J. A., [...], Morrisey, E. E. (2021). Genomic, epigenomic, and biophysical cues controlling the emergence of the lung alveolus. Science (American Association for the Advancement of Science), 371(6534). https://doi.org/10.1126/science.abc3172
 
 
-[Click here to download data](https://cellxgene.cziscience.com/collections/48d354f5-a5ca-4f35-a3bb-fa3687502252 CellXGene")
+[Click here to download data](https://cellxgene.cziscience.com/collections/48d354f5-a5ca-4f35-a3bb-fa3687502252)
 
 ```{r libraries, error = F, warnings = F, message = F}
 library(anndata)
