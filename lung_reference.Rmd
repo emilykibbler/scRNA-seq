@@ -5,13 +5,13 @@ date: "2025-07-18"
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(echo = TRUE, warnings = FALSE)
 ```
 
 ## R Markdown
 
 
-This script prepares a publicly-available data set for processing as a reference for clustering using Seurat.
+This script prepares a publicly-available single cell RNA sequencing data set, annotated by the cell type, for processing as a reference for clustering using Seurat.
 
 
 Citation:
@@ -143,11 +143,26 @@ lung <- FindClusters(lung, resolution = 0.8)
 
 ElbowPlot(lung)
 
+
+```
+The "elbow," point of diminishing returns, happens between the component ~15 and 20. (An ideal elbow plot would have a harder, more defined elbow.) I will use 16.
+
+Dimensional reduction
+``` {r dim reductions}
 lung <- SCTransform(lung)
 
 lung <- RunUMAP(lung, dims = 1:16)
 lung <- RunTSNE(lung, dims = 1:16)
+DimPlot(lung,
+        reduction = "tsne",
+        repel = TRUE,
+        label = TRUE,
+        group.by = "cell_type",
+        ) + 
+  NoLegend() +
+  ggtitle("tSNE plot of cell types")
 ```
+
 Export data
 ``` {r export}
 saveRDS(lung, "./data/mouse_atlas/lung_reference.rds")
