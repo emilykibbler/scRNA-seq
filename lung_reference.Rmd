@@ -5,7 +5,7 @@ date: "2025-07-18"
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE, warnings = FALSE)
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE)
 ```
 
 ## R Markdown
@@ -33,7 +33,7 @@ library(tidyverse)
 library(ggpubr)
 ```
 
-``` {r memory size, echo = FALSE}
+``` {r memory size, echo = FALSE, results = FALSE}
 mem.maxVSize(Inf)
 ```
 
@@ -136,7 +136,8 @@ Cluster
 lung <- FindVariableFeatures(lung)
 
 lung <- RunPCA(lung,
-                  features = VariableFeatures(object = lung))
+                  features = VariableFeatures(object = lung),
+               verbose = FALSE)
 
 lung <- FindNeighbors(lung, dims = 1:16)
 lung <- FindClusters(lung, resolution = 0.8)
@@ -149,24 +150,27 @@ The "elbow," point of diminishing returns, happens between the component ~15 and
 
 Dimensional reduction
 ``` {r dim reductions}
-lung <- SCTransform(lung)
+lung <- SCTransform(lung, verbose = FALSE)
 
-lung <- RunUMAP(lung, dims = 1:16)
-lung <- RunTSNE(lung, dims = 1:16)
+lung <- RunUMAP(lung, dims = 1:16, verbose = FALSE)
+lung <- RunTSNE(lung, dims = 1:16, verbose = FALSE)
 DimPlot(lung,
-        reduction = "tsne",
+        reduction = "umap",
         repel = TRUE,
         label = TRUE,
         group.by = "cell_type",
         ) + 
   NoLegend() +
-  ggtitle("tSNE plot of cell types")
+  ggtitle("UMAP plot of cell types")
 ```
 
-Export data
+Export data to be used by other scripts
 ``` {r export}
 saveRDS(lung, "./data/mouse_atlas/lung_reference.rds")
 ```
+
+System info
 ``` {r system info}
 Sys.info()
 ```
+
