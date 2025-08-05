@@ -1,0 +1,342 @@
+---
+title: "compare_references"
+author: "Emily Kibbler"
+date: "2025-08-03"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warnings = FALSE)
+```
+
+This script compares two publicly-available reference data sets to each other.
+
+One is from the Satija lab.
+
+[Click here to download data](https://zenodo.org/records/7779017#.ZCMojezMJqs)
+
+The second is a combined data set from Jin et al.
+
+Jin, K., [...] Aronow, B. J. (2021). An interactive single cell web portal identifies gene and cell networks in COVID-19 host responses. iScience, 24(10), Article 103115. https://doi.org/10.1016/j.isci.2021.103115
+
+[Click here to download data](https://cellxgene.cziscience.com/collections/b9fc3d70-5a72-4479-a046-c2cc1ab19efc)
+
+My hope is to see agreement on cell type calls between the references. If this is the case, it will provide evidence that either would be appropriate for independent analysis.
+
+```{r libraries, error = F, warnings = F, message = F}
+library(anndata)
+library(Seurat)
+library(MuDataSeurat)
+library(BPCells)
+library(reticulate)
+library(Seurat)
+library(Azimuth)
+library(tidyverse)
+library(ggpubr)
+```
+
+``` {r memory size, echo = FALSE, results = FALSE}
+mem.maxVSize(Inf)
+options(future.globals.maxSize = 32 * 1e9)
+```
+Define functions:
+``` {r functions}
+# This function takes a data set (Seurat object) and a list of desired features and returns a ggarrange plot object
+# Features must be something that can be retrieved by Seurat's FetchData function
+# Heavy lifting performed by Seurat's VlnPlot function; formatting and tweaking by E. Kibbler
+
+myVlnPlot <- function(dat, feats) {
+  # Structure as a list even if only one feature is given
+  if (length(feats) == 1) {
+    feats <- c(feats)
+  }
+  # Initiate empty list to put the plot(s) in
+  plots <- c()
+  # Plot each feature separately
+  for (i in 1:length(feats)) {
+    # Use suppressWarnings because the VlnPlot() has a default argument which uses a deprecated argument
+    temp <- suppressWarnings(VlnPlot(dat,
+                    features = feats[i])) +
+      theme(axis.text.x = element_blank(),
+            axis.title.x = element_blank(),
+            legend.position = "none")
+    plots <- c(plots, list(temp))
+  }
+  # Generate and return a plot of panel(s)
+  res <- ggarrange(plotlist = plots, nrow = 1)
+  return(res)
+}
+```
+Read in Jin data:
+``` {r read in Jin data}
+path <- "./data/pbmc_reference/jin_pbmc.h5ad"
+
+# h5ad file was formatted in Python; convert to a format available to R
+numpy <- import('numpy', convert = FALSE)
+anndata <- import('anndata', convert = FALSE)
+scipy <- import('scipy', convert = FALSE)
+
+adata <- py_to_r(read_h5ad(path))
+mat <- as.sparse(adata$X)
+mat <- t(mat)
+```
+
+``` {r create Seurat object}
+mat <- Azimuth:::ConvertEnsembleToSymbol(mat = mat, species = "human")
+jin <- CreateSeuratObject(counts = mat, 
+                           meta.data = adata$obs)
+```
+
+Visualize quality of Jin data and filter:
+``` {r filter Jin data}
+# Down sample data to make it possible to process locally
+jin <- subset(jin, downsample = 15000)
+
+# Calculate mitochondrial percentage
+jin[["percent.mt"]] <- PercentageFeatureSet(jin, 
+                                            pattern = "(?i)^MT-")
+# Plot quality data
+myVlnPlot(dat = jin, 
+        feats = c("nFeature_RNA", 
+                  "nCount_RNA", 
+                  "percent.mt")) %>%
+  annotate_figure(top = text_grob("Unfiltered quality plots, Jin data",
+                                  size = 16))
+
+# Remove cells that do not meet criteria
+jin <- subset(jin, 
+              subset = nFeature_RNA > 400 & 
+                nFeature_RNA < 3500 & 
+                percent.mt < 5)
+# Plot filtered data
+myVlnPlot(dat = jin, 
+        feats = c("nFeature_RNA",
+                  "nCount_RNA",
+                  "percent.mt")) %>%
+  annotate_figure(top = text_grob("Filtered quality plots, Jin data",
+                                  size = 16))
+```
+Read in and filter Satija data:
+``` {r read and filter Satija reference}
+reference <- readRDS("./data/pbmc_reference/pbmc_multimodal_2023.rds")
+# Down sample
+reference <- subset(reference, downsample = 15000)
+# Calculate mitochondrial DNA percentage
+reference[["percent.mt"]] <- PercentageFeatureSet(reference, 
+                                            pattern = "(?i)^MT-")
+# Clear cluster identities before plotting to visualize data holistically
+Idents(reference) <- "all"
+reference %>% myVlnPlot(c("nCount_RNA", 
+                          "nFeature_RNA",
+                          "percent.mt")) %>%
+  annotate_figure(top = text_grob("Unfiltered quality plots, Satija data",
+                                  size = 16))
+
+reference <- subset(reference,
+                    nFeature_RNA > 400 &
+                      nFeature_RNA < 3500 &
+                      percent.mt < 5)
+
+reference %>% myVlnPlot(c("nCount_RNA", 
+                          "nFeature_RNA",
+                          "percent.mt")) %>%
+  annotate_figure(top = text_grob("Filtered quality plots, Satija data",
+                                  size = 16))
+```
+Process Jin data for comparison:
+``` {r pre processing}
+
+jin <- NormalizeData(jin, verbose = FALSE)
+all.genes <- rownames(jin)
+jin <- ScaleData(jin, features = all.genes, verbose = FALSE)
+jin <- FindVariableFeatures(jin, verbose = FALSE)
+
+jin <- RunPCA(jin,
+              features = VariableFeatures(object = jin),
+              verbose = FALSE)
+jin <- SCTransform(jin, verbose = FALSE)
+jin <- RunUMAP(jin, dims = 1:30, return.model = TRUE, verbose = FALSE)
+
+```
+
+Map Jin data onto Satija data:
+``` {r Jin mapping}
+anchors <- FindTransferAnchors(
+  reference = reference,
+  query = jin,
+  reference.reduction = "pca",
+  normalization.method = "SCT",
+  dims = 1:50,
+  verbose = FALSE
+)
+
+jin <- MapQuery(
+  anchorset = anchors,
+  query = jin,
+  reference = reference,
+  refdata = list(
+    celltype.l1 = "celltype.l1",
+    celltype.l2 = "celltype.l2",
+    celltype.l3 = "celltype.l3"
+  ),
+  reduction.model = "wnn.umap",
+  verbose = FALSE
+)
+```
+
+Plot outcome:
+``` {r jin v Satija plots}
+
+DimPlot(jin, 
+        reduction = "umap", 
+        group.by = "predicted.celltype.l1", 
+        label = TRUE,
+        label.size = 3,
+        repel = TRUE) + 
+  NoLegend() +
+  ggtitle("Jin data, Satija labeling, cell type level 1")
+
+DimPlot(jin, 
+        reduction = "umap", 
+        group.by = "Lineage", 
+        label = TRUE,
+        label.size = 3,
+        repel = TRUE) +
+  NoLegend() +
+  ggtitle("Jin data, Jin cell lineage")
+
+
+DimPlot(jin, 
+        reduction = "umap", 
+        group.by = "predicted.celltype.l2", 
+        label = TRUE,
+        label.size = 3,
+        repel = TRUE) + 
+  NoLegend() +
+  ggtitle("Jin data, Satija labeling, cell type level 2")
+
+DimPlot(jin, 
+        reduction = "umap", 
+        group.by = "Cell.class", 
+        label = TRUE,
+        label.size = 3,
+        repel = TRUE) +
+  NoLegend() +
+  ggtitle("Jin data, Jin cell class")
+
+DimPlot(jin, 
+        reduction = "umap", 
+        group.by = "predicted.celltype.l3", 
+        label = TRUE,
+        label.size = 3,
+        repel = TRUE) + 
+  NoLegend() +
+  ggtitle("Jin data, Satija labeling, cell type level 3")
+
+DimPlot(jin, 
+        reduction = "umap", 
+        group.by = "Cell.group", 
+        label = TRUE,
+        label.size = 3,
+        repel = TRUE) + 
+  NoLegend() +
+  ggtitle("Jin data, Jin labeling, cell group")
+
+```
+We are not seeing large discrepancies in cell type classification. This lends support to the hypothesis that either reference would be appropriate to use for further analysis. It also adds validation to this pipeline as a method for cell type classification.
+
+
+
+Satija data processing:
+``` {r process Satija reference}
+reference <- NormalizeData(reference)
+reference <- FindVariableFeatures(reference)
+reference <- ScaleData(reference)
+
+anchors <- FindTransferAnchors(
+  reference = jin,
+  query = reference,
+  reference.reduction = "pca",
+  normalization.method = "SCT", 
+  dims = 1:50,
+  recompute.residuals = FALSE,
+  verbose = FALSE
+)
+
+reference <- MapQuery(
+  anchorset = anchors,
+  query = reference,
+  reference = jin,
+  refdata = list(
+    Lineage = "Lineage",
+    Cell.group = "Cell.group",
+    Cell.class = "Cell.class"
+  ),
+  reduction.model = "umap",
+  verbose = FALSE
+)
+```
+Plot outcomes:
+``` {r satija v jin plots}
+
+DimPlot(reference, 
+        reduction = "umap", 
+        group.by = "celltype.l1", 
+        label = TRUE,
+        label.size = 3,
+        repel = TRUE) + 
+  NoLegend() +
+  ggtitle("Satija data, Satija labels, cell type level 1")
+
+DimPlot(reference, 
+        reduction = "umap", 
+        group.by = "predicted.Lineage", 
+        label = TRUE,
+        label.size = 3,
+        repel = TRUE) + 
+  NoLegend() +
+  ggtitle("Satija data, Jin labels, lineage")
+
+DimPlot(reference, 
+        reduction = "umap", 
+        group.by = "celltype.l2", 
+        label = TRUE,
+        label.size = 3,
+        repel = TRUE) + 
+  NoLegend() +
+  ggtitle("Satija data, Satija labels, cell type level 2")
+
+DimPlot(reference, 
+        reduction = "umap", 
+        group.by = "predicted.Cell.group", 
+        label = TRUE,
+        label.size = 3,
+        repel = TRUE) + 
+  NoLegend() +
+  ggtitle("Satija data, Jin labels, cell group")
+
+DimPlot(reference, 
+        reduction = "umap", 
+        group.by = "celltype.l3", 
+        label = TRUE,
+        label.size = 3,
+        repel = TRUE) + NoLegend() +
+  ggtitle("Satija data, Satija labels, cell type level 3")
+
+DimPlot(reference, 
+        reduction = "umap", 
+        group.by = "predicted.Cell.class", 
+        label = TRUE,
+        label.size = 3,
+        repel = TRUE) + NoLegend() +
+  ggtitle("Satija data, Jin labels, cell class")
+
+```
+
+Again, we see good agreement.
+
+
+Discrepancies arise in "leveling" these classifications. PBMCs are complicated cells with a branching tree of differentiation, so determining parent/child/subclass designations is not simple. However, when evaluating the classification as whole, a high-level consensus is reached.
+
+
+Generally, we can say that the pipeline and reference data sources have been sufficiently validated for my use at this time.
