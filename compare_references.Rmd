@@ -2,11 +2,18 @@
 title: "compare_references"
 author: "Emily Kibbler"
 date: "2025-08-03"
-output: pdf_document
+output: 
+  pdf_document:
+    pandoc_args: ["--variable", "colorlinks=true", "--variable", "urlcolor=blue"]
+header-includes:
+  - \usepackage{xcolor}
+  - \usepackage{hyperref}
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE, warnings = FALSE)
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(warning = FALSE)
+knitr::opts_chunk$set(warnings = FALSE)
 ```
 
 This script compares two publicly-available reference data sets to each other.

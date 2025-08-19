@@ -1,0 +1,229 @@
+---
+title: "Visualizations"
+author: "Emily Kibbler"
+date: "2025-08-12"
+output: 
+  pdf_document:
+    pandoc_args: ["--variable", "colorlinks=true", "--variable", "urlcolor=blue"]
+header-includes:
+  - \usepackage{xcolor}
+  - \usepackage{hyperref}
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(warning = FALSE)
+knitr::opts_chunk$set(warnings = FALSE)
+```
+
+This pipeline is for analysis of scRNA-seq data from a publicly available data set.
+
+Citation: 
+
+Phetsouphanh C, [...] Matthews GV. Improvement of immune dysregulation in individuals with long COVID at 24-months following SARS-CoV-2 infection. Nat Commun. 2024 Apr 17;15(1):3315. doi: 10.1038/s41467-024-47720-8. PMID: 38632311; PMCID: PMC11024141.
+
+
+[Click here to access the data from GEO](https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE262861)
+
+This script finds and graphs variable features, plots principal components, and generates UMAP graphs
+
+
+```{r options, echo = FALSE, results = FALSE}
+mem.maxVSize(Inf)
+options(future.globals.maxSize = 32 * 1e9)
+```
+
+```{r load packages, results = FALSE, message = FALSE}
+library(anndata)
+library(Seurat)
+library(MuDataSeurat)
+library(BPCells)
+library(reticulate)
+library(Seurat)
+library(Azimuth)
+library(tidyverse)
+library(ggpubr)
+```
+
+   \begingroup
+    \fontsize{14}{20}\selectfont
+    Part 1: 4 month time point
+    \endgroup
+
+Read data. This R data file is the final output of markdown script titled "Long COVID data analysis: map 4 month data onto reference"
+```{r 4mth read}
+combo <- readRDS("./data/covid/4m_mapped_combo.rds")
+```
+Variable features
+```{r 4mth variable features}
+combo <- FindVariableFeatures(combo)
+# Identify the 10 most highly variable genes
+top10 <- head(VariableFeatures(combo), 10)
+# Plot variable features
+VariableFeaturePlot(combo, assay = "integrated") %>%
+  LabelPoints(points = top10,
+  repel = TRUE) +
+  theme(legend.position = "bottom") +
+  ggtitle("Variable features, 4 months")
+```
+
+PCA
+```{r 4mth PCA}
+print(combo[["pca"]], dims = 1:5, nfeatures = 5)
+VizDimLoadings(combo, dims = 1:2, reduction = "pca")
+DimHeatmap(combo, dims = 1:2, cells = 500, balanced = TRUE)
+```
+
+UMAP
+```{r umap 8 mth}
+DimPlot(combo, 
+        reduction = "umap", 
+        group.by = "predicted.celltype.l1", 
+        label = TRUE,
+        label.size = 3,
+        repel = TRUE) + 
+  NoLegend() +
+  ggtitle("Cell classification level 1, 4 months")
+
+DimPlot(combo, 
+        reduction = "umap", 
+        group.by = "predicted.celltype.l2", 
+        label = TRUE,
+        label.size = 3,
+        repel = TRUE) + 
+  NoLegend() +
+  ggtitle("Cell classification level 2, 4 months")
+
+DimPlot(combo, 
+        reduction = "umap", 
+        group.by = "predicted.celltype.l3", 
+        label = TRUE,
+        label.size = 3,
+        repel = TRUE) + 
+  NoLegend() +
+  ggtitle("Cell classification level 3, 4 months")
+
+```
+
+
+   \begingroup
+    \fontsize{14}{20}\selectfont
+    Part 2: 8 month time point
+    \endgroup
+
+Read data. This R data file is the final output of markdown script titled "Long COVID data analysis: map 8 month data onto reference"
+```{r 8mth read}
+combo <- readRDS("./data/covid/8m_mapped_combo.rds")
+```
+Variable features
+```{r 8mth variable features}
+combo <- FindVariableFeatures(combo)
+# Identify the 10 most highly variable genes
+top10 <- head(VariableFeatures(combo), 10)
+# Plot variable features
+VariableFeaturePlot(combo, assay = "integrated") %>%
+  LabelPoints(points = top10,
+  repel = TRUE) +
+  theme(legend.position = "bottom") +
+  ggtitle("Variable features, 8 months")
+```
+
+PCA
+```{r 8mth PCA}
+print(combo[["pca"]], dims = 1:5, nfeatures = 5)
+VizDimLoadings(combo, dims = 1:2, reduction = "pca")
+DimHeatmap(combo, dims = 1:2, cells = 500, balanced = TRUE)
+```
+
+UMAP
+```{r umap 8mth}
+DimPlot(combo, 
+        reduction = "umap", 
+        group.by = "predicted.celltype.l1", 
+        label = TRUE,
+        label.size = 3,
+        repel = TRUE) + 
+  NoLegend() +
+  ggtitle("Cell classification level 1, 8 months")
+
+DimPlot(combo, 
+        reduction = "umap", 
+        group.by = "predicted.celltype.l2", 
+        label = TRUE,
+        label.size = 3,
+        repel = TRUE) + 
+  NoLegend() +
+  ggtitle("Cell classification level 2, 8 months")
+
+DimPlot(combo, 
+        reduction = "umap", 
+        group.by = "predicted.celltype.l3", 
+        label = TRUE,
+        label.size = 3,
+        repel = TRUE) + 
+  NoLegend() +
+  ggtitle("Cell classification level 3, 8 months")
+
+```
+
+
+   \begingroup
+    \fontsize{14}{20}\selectfont
+    Part 3: 24 month time point
+    \endgroup
+
+Read data. This R data file is the final output of markdown script titled "Long COVID data analysis: map 24 month data onto reference"
+```{r 24mth read}
+combo <- readRDS("./data/covid/24m_mapped_combo.rds")
+```
+Variable features
+```{r 24mth variable features}
+combo <- FindVariableFeatures(combo)
+# Identify the 10 most highly variable genes
+top10 <- head(VariableFeatures(combo), 10)
+# Plot variable features
+VariableFeaturePlot(combo, assay = "integrated") %>%
+  LabelPoints(points = top10,
+  repel = TRUE) +
+  theme(legend.position = "bottom") +
+  ggtitle("Variable features, 24 months")
+```
+
+PCA
+```{r 24mth PCA}
+print(combo[["pca"]], dims = 1:5, nfeatures = 5)
+VizDimLoadings(combo, dims = 1:2, reduction = "pca")
+DimHeatmap(combo, dims = 1:2, cells = 500, balanced = TRUE)
+```
+
+UMAP
+```{r 24 mth umap}
+DimPlot(combo, 
+        reduction = "umap", 
+        group.by = "predicted.celltype.l1", 
+        label = TRUE,
+        label.size = 3,
+        repel = TRUE) + 
+  NoLegend() +
+  ggtitle("Cell classification level 1, 24 months")
+
+DimPlot(combo, 
+        reduction = "umap", 
+        group.by = "predicted.celltype.l2", 
+        label = TRUE,
+        label.size = 3,
+        repel = TRUE) + 
+  NoLegend() +
+  ggtitle("Cell classification level 2, 24 months")
+
+DimPlot(combo, 
+        reduction = "umap", 
+        group.by = "predicted.celltype.l3", 
+        label = TRUE,
+        label.size = 3,
+        repel = TRUE) + 
+  NoLegend() +
+  ggtitle("Cell classification level 3, 24 months")
+
+```
